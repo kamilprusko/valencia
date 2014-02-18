@@ -267,8 +267,8 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         output_pane.add(output_view);
         output_pane.show_all();
 
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.add_item_with_stock_icon(output_pane, "build", "Build", Gtk.Stock.CONVERT);
+        Gtk.Stack stack = (Gtk.Stack) window.get_bottom_panel();
+        stack.add_titled(output_pane, "build", "Build");
 
         // Run pane
         run_terminal = new Vte.Terminal();
@@ -280,7 +280,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         run_pane.add(run_terminal);
         run_pane.show_all();
         
-        panel.add_item_with_stock_icon(run_pane, "run", "Run", Gtk.Stock.EXECUTE);     
+        stack.add_titled(run_pane, "run", "Run");
 
         // Symbol pane
         symbol_browser = new SymbolBrowser(this);
@@ -642,9 +642,9 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
     
     void show_output_pane() {
         output_pane.show();
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.activate_item(output_pane);
-        panel.show();
+        Gtk.Stack stack = (Gtk.Stack) window.get_bottom_panel();
+        stack.set_visible_child(output_pane);
+        stack.show();
     }
     
     void spawn_process(string command, string working_directory, ProcessFinished callback) {
@@ -663,10 +663,7 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
         on_process_finshed = callback;
         output_buffer.set_text("", 0);
         
-        output_pane.show();
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.activate_item(output_pane);
-        panel.show();
+        show_output_pane();
         
         Pid child_pid;
         int input_fd;
@@ -1273,9 +1270,9 @@ public class Instance : Peas.ExtensionBase, Gedit.WindowActivatable {
 
         run_terminal.reset(true, true);
         run_pane.show();
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.activate_item(run_pane);
-        panel.show();
+        Gtk.Stack stack = (Gtk.Stack) window.get_bottom_panel();
+        stack.set_visible_child(run_pane);
+        stack.show();
         
         child_process_running = true;
     }
@@ -1579,9 +1576,9 @@ void on_clean() {
         manager.remove_ui(ui_id);
         manager.remove_action_group(action_group);
 
-        Gedit.Panel panel = window.get_bottom_panel();
-        panel.remove_item(output_pane);
-        panel.remove_item(run_pane);
+        Gtk.Stack stack = (Gtk.Stack) window.get_bottom_panel();
+        stack.remove(output_pane);
+        stack.remove(run_pane);
         
         symbol_browser.deactivate();
         

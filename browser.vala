@@ -35,28 +35,28 @@ class SymbolBrowser : Object {
     }
     
     public void activate() {
-        weak Gedit.Panel panel = instance.window.get_side_panel();
-        panel.add_item_with_stock_icon(symbol_vbox, "symbols", "Symbols", Gtk.Stock.FIND);
+        unowned Gtk.Stack stack = (Gtk.Stack) instance.window.get_side_panel();
+        stack.add_titled(symbol_vbox, "symbols", "Symbols");
         symbol_vbox.show_all();
         
-        panel.show.connect(on_panel_open);
-        panel.hide.connect(on_panel_hide);
+        stack.show.connect(on_stack_open);
+        stack.hide.connect(on_stack_hide);
     }
     
     public void deactivate() {
-        instance.window.get_side_panel().remove_item(symbol_vbox);
+        ((Gtk.Stack) instance.window.get_side_panel()).remove(symbol_vbox);
     }
     
     void on_text_changed() {
         on_update_symbols();
     }
 
-    void on_panel_open() {
+    void on_stack_open() {
         visible = true;
         on_receive_focus();
     }
     
-    void on_panel_hide() {
+    void on_stack_hide() {
         visible = false;
     }
 
@@ -165,10 +165,10 @@ class SymbolBrowser : Object {
     }
 
     public void set_parent_instance_focus() {
-        Gedit.Panel panel = instance.window.get_side_panel();
-        panel.show();
+        Gtk.Stack stack = (Gtk.Stack) instance.window.get_side_panel();
+        stack.show();
         
-        panel.activate_item(symbol_vbox);
+        stack.set_visible_child(symbol_vbox);
         instance.window.set_focus(find_entry);
     }
 
