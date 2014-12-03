@@ -904,9 +904,13 @@ public class ConfigurationFile : Object {
     const string clean_command_keyword = "clean_command";
     const string default_build_command = "make";
     const string default_clean_command = "make clean";
+    const string pkg_blacklist_keyword = "pkg_blacklist";
+    const string default_pkg_blacklist = "";
 
     string build_command;
     string clean_command;
+    string pkg_blacklist;
+    string[]? blacklisted_vapis = null;
 
     enum MatchValue {
         MATCHED,
@@ -981,6 +985,8 @@ public class ConfigurationFile : Object {
                 build_command = match2;
             else if (match1 == clean_command_keyword && match2 != null && clean_command == null)
                 clean_command = match2;
+            else if (match1 == pkg_blacklist_keyword && match2 != null && pkg_blacklist == null)
+                pkg_blacklist = match2;
             else {
                 warning("Incorrect file format, ignoring...\n");
                 return;
@@ -1002,10 +1008,33 @@ public class ConfigurationFile : Object {
         return clean_command == null ? default_clean_command : clean_command;
     }
     
-    public void update(string new_build_command, string new_clean_command) {
+    public string get_pkg_blacklist() {
+        if (pkg_blacklist == null)
+            load();
+        
+        return pkg_blacklist ?? default_pkg_blacklist;
+    }
+    
+    public string[] get_blacklisted_vapis() {
+        if (blacklisted_vapis == null) {
+            string blacklist = get_pkg_blacklist();
+            if (blacklist == null || blacklist.length == 0) {
+                blacklisted_vapis = new string[0];
+            } else {
+                blacklisted_vapis = blacklist.split(";");
+                for (int ctr = 0; ctr < blacklisted_vapis.length; ctr++)
+                    blacklisted_vapis[ctr] = blacklisted_vapis[ctr].strip() + ".vapi";
+            }
+        }
+        
+        return blacklisted_vapis;
+    }
+    
+    public void update(string new_build_command, string new_clean_command, string new_pkg_blacklist) {
         build_command = new_build_command;
         clean_command = new_clean_command;
-    
+        pkg_blacklist = new_pkg_blacklist;
+        
         string file_path = get_file_path();
         FileStream file = FileStream.open(file_path, "w");
         
@@ -1017,6 +1046,11 @@ public class ConfigurationFile : Object {
         file.printf("%s = %s\n", version_keyword, version);
         file.printf("%s = %s\n", build_command_keyword, build_command);
         file.printf("%s = %s\n", clean_command_keyword, clean_command);
+        file.printf("%s = %s\n", pkg_blacklist_keyword, pkg_blacklist);
+        
+        // clear to force a re-load; note that Valencia currently doesn't re-load the cache after
+        // the first pass, so this is kind of moot
+        blacklisted_vapis = null;
     }
 
     public void update_location(string old_directory) {
@@ -1060,6 +1094,8 @@ public class Program : Object {
     public ConfigurationFile config_file;
 
     bool recursive_project;
+    uint local_parse_source_id = 0;
+    uint system_parse_source_id = 0;
     
     signal void local_parse_complete();
     public signal void system_parse_complete();
@@ -1084,11 +1120,24 @@ public class Program : Object {
             recursive_project = false;
         }
 
-        Idle.add(parse_local_vala_files_idle_callback);
+        local_parse_source_id = Idle.add(parse_local_vala_files_idle_callback);
         
         programs.add(this);
     }
-
+    
+    ~Program() {
+        if (local_parse_source_id != 0)
+            Source.remove(local_parse_source_id);
+        
+        if (system_parse_source_id != 0)
+            Source.remove(system_parse_source_id);
+    }
+    
+    public static void wipe() {
+        programs.clear();
+        system_sources.clear();
+    }
+    
     // Returns true if a BUILD_ROOT or configure.ac was found: files should be found recursively
     // False if only the local directory will be used
     bool get_build_root_directory(GLib.File makefile_dir) {
@@ -1178,6 +1227,8 @@ public class Program : Object {
     }
 
     bool parse_local_vala_files_idle_callback() {
+        local_parse_source_id = 0;
+        
         if (sourcefile_paths.is_empty) {
             // Don't parse system files locally!
             foreach (string system_directory in get_system_vapi_directories()) {
@@ -1203,6 +1254,8 @@ public class Program : Object {
     }
 
     bool parse_system_vala_files_idle_callback() {
+        system_parse_source_id = 0;
+        
         if (sourcefile_paths.size == 0) {
             foreach (string system_directory in get_system_vapi_directories()) {
                 cache_source_paths_in_directory(system_directory, true);
@@ -1278,6 +1331,12 @@ public class Program : Object {
             string path = Path.build_filename(directory, file);
 
             if (is_vala(file)) {
+                if (file in config_file.get_blacklisted_vapis()) {
+                    debug("Skipping blacklisted package %s", file);
+                    
+                    continue;
+                }
+                
                 sourcefile_paths.add(path);
                 
                 try {
@@ -1306,7 +1365,11 @@ public class Program : Object {
             parsing = true;
             parse_list_index = 0;
             sourcefile_paths.clear();
-            Idle.add(this.parse_system_vala_files_idle_callback);
+            
+            if (system_parse_source_id != 0)
+                Source.remove(system_parse_source_id);
+            
+            system_parse_source_id = Idle.add(this.parse_system_vala_files_idle_callback);
         }
     }
     
