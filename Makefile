@@ -8,7 +8,7 @@ VALAC = valac
 endif
 
 ifndef LIBVALA
-LIBVALA=libvala-0.24
+LIBVALA=libvala-0.26
 endif
 
 VALAC_VERSION := `$(VALAC) --version | awk '{print $$2}'`
@@ -26,7 +26,7 @@ PACKAGE_VERSIONS = \
     gtksourceview-3.0 >= 3.0.0 \
     gtk+-3.0 >= 3.0.0 \
     $(LIBVALA) \
-    vte-2.91
+    vte-2.90
 
 OUTPUTS = libvalencia.so valencia.plugin
 
